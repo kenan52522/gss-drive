@@ -176,11 +176,11 @@ function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
   }));
 }
 
-export default function Level7Page() {
+export default function Page() {
   const watchIdRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioReadyRef = useRef(false);
-  const lastPlayAtRef = useRef(0);
+  const lastWarningPlayAtRef = useRef(0);
+  const routeReadyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const warningAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [googleReady, setGoogleReady] = useState(false);
   const [from, setFrom] = useState("Samsun");
@@ -247,11 +247,6 @@ export default function Level7Page() {
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
     };
   }, []);
 
@@ -263,83 +258,58 @@ export default function Level7Page() {
     setTracking(false);
   }
 
-  function createAudioInstance() {
-    if (typeof window === "undefined") return null;
+  async function playRouteReadySound() {
+    const audio = routeReadyAudioRef.current;
 
-    const audio = new Audio("/sounds/warning-500m.mp3");
-    audio.preload = "auto";
-    audio.volume = 1;
-    return audio;
-  }
-
-  async function prepareAudioEngine() {
-    if (typeof window === "undefined") return;
-    if (audioReadyRef.current && audioRef.current) return;
-
-    try {
-      if (!audioRef.current) {
-        audioRef.current = createAudioInstance();
-      }
-
-      if (!audioRef.current) {
-        setAudioStatus("Ses nesnesi oluşturulamadı");
-        return;
-      }
-
-      audioRef.current.muted = true;
-      audioRef.current.currentTime = 0;
-
-      try {
-        await audioRef.current.play();
-        audioRef.current.pause();
-      } catch {
-        // Bazı tarayıcılarda ilk denemede sessiz ön başlatma hata verebilir.
-      }
-
-      audioRef.current.muted = false;
-      audioRef.current.currentTime = 0;
-
-      audioReadyRef.current = true;
-      setAudioStatus("Hazır");
-    } catch (error) {
-      console.error("Ses motoru hazırlanamadı:", error);
-      setAudioStatus("Hazırlanamadı");
-    }
-  }
-
-  async function playWarningMp3() {
-    if (typeof window === "undefined") return;
-    if (!audioReadyRef.current) return;
-
-    const now = Date.now();
-
-    // Aynı anda çok kısa aralıkla gelen tetiklemeleri yumuşatır.
-    if (now - lastPlayAtRef.current < 1200) {
+    if (!audio) {
+      setAudioStatus("Rota sesi bulunamadı");
       return;
     }
 
-    lastPlayAtRef.current = now;
-
     try {
-      if (!audioRef.current) {
-        audioRef.current = createAudioInstance();
-      }
-
-      if (!audioRef.current) return;
-
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      await audioRef.current.play();
-      setAudioStatus("Çalıyor");
+      audio.pause();
+      audio.currentTime = 0;
+      await audio.play();
+      setAudioStatus("Rota sesi çalıyor");
     } catch (error) {
-      console.error("MP3 çalınamadı:", error);
-      setAudioStatus("Çalma hatası");
+      console.error("Rota sesi çalma hatası:", error);
+      setAudioStatus("Rota sesi hatası");
     }
   }
 
-  async function testAudio() {
-    await prepareAudioEngine();
-    await playWarningMp3();
+  async function playWarningSound(force = false) {
+    const audio = warningAudioRef.current;
+
+    if (!audio) {
+      setAudioStatus("Uyarı sesi bulunamadı");
+      return;
+    }
+
+    const now = Date.now();
+
+    if (!force && now - lastWarningPlayAtRef.current < 1200) {
+      return;
+    }
+
+    lastWarningPlayAtRef.current = now;
+
+    try {
+      audio.pause();
+      audio.currentTime = 0;
+      await audio.play();
+      setAudioStatus("Uyarı sesi çalıyor");
+    } catch (error) {
+      console.error("Uyarı sesi çalma hatası:", error);
+      setAudioStatus("Uyarı sesi hatası");
+    }
+  }
+
+  async function testRouteSound() {
+    await playRouteReadySound();
+  }
+
+  async function testWarningSound() {
+    await playWarningSound(true);
   }
 
   async function startTracking() {
@@ -355,10 +325,12 @@ export default function Level7Page() {
       return;
     }
 
-    await prepareAudioEngine();
+    // Tıklama anında warning sesi bir kez çalınır.
+    // Böylece tarayıcı bu sesi kullanıcı etkileşimi içinde tanır.
+    await playWarningSound(true);
 
     const watchId = navigator.geolocation.watchPosition(
-      async (position) => {
+      (position) => {
         const lat = position.coords.latitude;
         const lng = position.coords.longitude;
 
@@ -372,10 +344,8 @@ export default function Level7Page() {
           if (result.triggered.length > 0) {
             setLastAlerts(result.triggered);
 
-            // Tek bir uyarı döngüsünde kaç metin gelirse gelsin,
-            // sadece bir kez MP3 çal.
-            playWarningMp3().catch((error) => {
-              console.error("Sesli uyarı hatası:", error);
+            playWarningSound().catch((error) => {
+              console.error("Uyarı sesi hatası:", error);
             });
           }
 
@@ -399,7 +369,7 @@ export default function Level7Page() {
   }
 
   async function calculateRoute() {
-    await prepareAudioEngine();
+    await playRouteReadySound();
 
     if (!window.google?.maps?.DirectionsService) {
       alert("Google yön tarifi servisi henüz hazır değil.");
@@ -505,6 +475,7 @@ export default function Level7Page() {
 
       setOverlayPointsState(overlayData.overlayPoints);
       setSummary(overlayData.summary);
+      setAudioStatus("Hazır");
     } catch (error) {
       console.error(error);
       alert(
@@ -518,8 +489,6 @@ export default function Level7Page() {
   }
 
   async function useCurrentLocation() {
-    await prepareAudioEngine();
-
     if (!navigator.geolocation) {
       alert("Tarayıcı konum özelliğini desteklemiyor.");
       return;
@@ -563,8 +532,16 @@ export default function Level7Page() {
         <div className="mx-auto max-w-5xl p-4 md:p-6">
           <h1 className="mb-2 text-3xl font-bold">Ken App Level 7</h1>
           <p className="mb-6 text-sm text-slate-300">
-            MP3 tabanlı sesli uyarı, canlı takip ve daha sade-stabil yapı
+            Rota sesi ve uyarı sesi ayrılmış sürüm
           </p>
+
+          <audio ref={routeReadyAudioRef} preload="auto" hidden>
+            <source src="/sounds/route-ready.mp3" type="audio/mpeg" />
+          </audio>
+
+          <audio ref={warningAudioRef} preload="auto" hidden>
+            <source src="/sounds/warning-500m.mp3" type="audio/mpeg" />
+          </audio>
 
           <div className="mb-4 grid gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 md:grid-cols-5">
             <div className="md:col-span-2">
@@ -572,7 +549,7 @@ export default function Level7Page() {
               <input
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                placeholder="Örn: Samsun Atakum veya Alaçam"
+                placeholder="Örnek: Samsun Atakum"
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 outline-none"
               />
             </div>
@@ -582,7 +559,7 @@ export default function Level7Page() {
               <input
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                placeholder="Örn: Ordu Fatsa Migros"
+                placeholder="Örnek: Ordu Fatsa Migros"
                 className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 outline-none"
               />
             </div>
@@ -626,12 +603,19 @@ export default function Level7Page() {
             </div>
           </div>
 
-          <div className="mb-4 grid gap-3 md:grid-cols-2">
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
             <button
-              onClick={testAudio}
+              onClick={testRouteSound}
               className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-100"
             >
-              MP3 Test Sesi Çal
+              Rota Sesini Test Et
+            </button>
+
+            <button
+              onClick={testWarningSound}
+              className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm font-medium text-yellow-100"
+            >
+              Uyarı Sesini Test Et
             </button>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
