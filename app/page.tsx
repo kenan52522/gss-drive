@@ -326,129 +326,13 @@ export default function Level6Page() {
   }
 
   async function calculateRoute() {
-  // 🔥 Kullanıcı tıklamasının sıcak anında ses motorunu aç
-  try {
-    await prepareAudioEngine();
-    playAlertSound("Test sesi çalışıyor");
-  } catch (error) {
-    console.error("İlk test sesi hatası:", error);
-  }
-
-  if (!window.google?.maps?.DirectionsService) {
-    alert("Google yön tarifi servisi henüz hazır değil.");
-    return;
-  }
-
-  if (!from.trim() || !to.trim()) {
-    alert("Başlangıç ve hedef alanlarını doldurun.");
-    return;
-  }
-
-  setLoading(true);
-  setTrackingError("");
-  setLastAlerts([]);
-  setNearestList([]);
-  setAlertStates({});
-  stopTracking();
-
-  try {
-    const directionsService = new window.google.maps.DirectionsService();
-
-    const routeResult = await directionsService.route({
-      origin: from,
-      destination: to,
-      travelMode: window.google.maps.TravelMode.DRIVING,
-      drivingOptions: {
-        departureTime: new Date(),
-        trafficModel: "bestguess",
-      },
-    });
-
-    const leg = routeResult?.routes?.[0]?.legs?.[0];
-
-    if (!leg) {
-      throw new Error("Rota bacağı bulunamadı.");
+    try {
+      await prepareAudioEngine();
+      await playAlertSound("Test sesi çalışıyor");
+    } catch (error) {
+      console.error("İlk test sesi hatası:", error);
     }
 
-    const fromLatitude = leg.start_location.lat();
-    const fromLongitude = leg.start_location.lng();
-    const toLatitude = leg.end_location.lat();
-    const toLongitude = leg.end_location.lng();
-
-    const startAddress = leg.start_address || "";
-    const endAddress = leg.end_address || "";
-
-    const fromResolved = resolveDistrictWithoutGeocoder(
-      from,
-      startAddress,
-      "Samsun",
-      ""
-    );
-
-    const toResolved = resolveDistrictWithoutGeocoder(
-      to,
-      endAddress,
-      "Ordu",
-      ""
-    );
-
-    setDebugInfo({
-      fromCity: fromResolved.city || "-",
-      fromDistrict: fromResolved.district || "-",
-      fromDistrictId: fromResolved.districtId
-        ? String(fromResolved.districtId)
-        : "Bulunamadı",
-      toCity: toResolved.city || "-",
-      toDistrict: toResolved.district || "-",
-      toDistrictId: toResolved.districtId
-        ? String(toResolved.districtId)
-        : "Bulunamadı",
-      fromAddress: startAddress || "-",
-      toAddress: endAddress || "-",
-    });
-
-    if (!fromResolved.districtId || !toResolved.districtId) {
-      throw new Error(
-        "districtId bulunamadı. Giriş metninde ilçe adı kullan ya da district-map eşlemesini genişlet."
-      );
-    }
-
-    const overlayRes = await fetch("/api/route-overlay", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to,
-        fromLatitude,
-        fromLongitude,
-        toLatitude,
-        toLongitude,
-        fromDistrictId: fromResolved.districtId,
-        toDistrictId: toResolved.districtId,
-      }),
-    });
-
-    const overlayData: OverlayResponse = await overlayRes.json();
-
-    if (!overlayRes.ok || !overlayData.success) {
-      throw new Error(overlayData.error || "Overlay verisi alınamadı.");
-    }
-
-    setOverlayPointsState(overlayData.overlayPoints);
-    setSummary(overlayData.summary);
-  } catch (error) {
-    console.error(error);
-    alert(
-      error instanceof Error
-        ? error.message
-        : "Rota oluşturulurken hata oluştu."
-    );
-  } finally {
-    setLoading(false);
-  }
-} {
     if (!window.google?.maps?.DirectionsService) {
       alert("Google yön tarifi servisi henüz hazır değil.");
       return;
@@ -553,14 +437,6 @@ export default function Level6Page() {
 
       setOverlayPointsState(overlayData.overlayPoints);
       setSummary(overlayData.summary);
-
-      await prepareAudioEngine();
-
-      try {
-        playAlertSound("Rota oluşturuldu");
-      } catch (error) {
-        console.error("Rota oluşturma sesi hatası:", error);
-      }
     } catch (error) {
       console.error(error);
       alert(

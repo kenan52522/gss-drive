@@ -38,7 +38,7 @@ export async function unlockAudioEngine() {
     const gainNode = ctx.createGain();
 
     oscillator.type = "sine";
-    oscillator.frequency.value = 440;
+    oscillator.frequency.value = 880;
     gainNode.gain.value = 0.0001;
 
     oscillator.connect(gainNode);
@@ -46,7 +46,7 @@ export async function unlockAudioEngine() {
 
     const now = ctx.currentTime;
     oscillator.start(now);
-    oscillator.stop(now + 0.01);
+    oscillator.stop(now + 0.05);
 
     audioUnlocked = true;
   } catch (error) {
@@ -122,7 +122,7 @@ export async function playAlertSound(text?: string) {
     if (text) {
       window.setTimeout(() => {
         speakFallback(text);
-      }, 950);
+      }, 900);
     }
   } catch (error) {
     console.error("Uyarı sesi çalınamadı:", error);
