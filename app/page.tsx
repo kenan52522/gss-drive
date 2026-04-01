@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { findDistrictId } from "@/lib/district-map";
 import { evaluateAlerts } from "@/lib/alert-engine";
-import { speakText } from "@/lib/speech";
+import { speakText, warmupSpeech } from "@/lib/speech";
 import { AlertPoint, AlertState } from "@/lib/types";
 
 type OverlayPointType = "radar" | "control" | "corridor_start" | "corridor_end";
@@ -179,6 +179,7 @@ function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
 
 export default function Level6Page() {
   const watchIdRef = useRef<number | null>(null);
+  const speechReadyRef = useRef(false);
 
   const [googleReady, setGoogleReady] = useState(false);
   const [from, setFrom] = useState("Samsun");
@@ -255,6 +256,17 @@ export default function Level6Page() {
     setTracking(false);
   }
 
+  function prepareSpeech() {
+    if (speechReadyRef.current) return;
+
+    try {
+      warmupSpeech();
+      speechReadyRef.current = true;
+    } catch (error) {
+      console.error("Ses sistemi hazırlanamadı:", error);
+    }
+  }
+
   function startTracking() {
     setTrackingError("");
 
@@ -267,6 +279,8 @@ export default function Level6Page() {
       setTrackingError("Tarayıcı canlı konum özelliğini desteklemiyor.");
       return;
     }
+
+    prepareSpeech();
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -282,7 +296,14 @@ export default function Level6Page() {
 
           if (result.triggered.length > 0) {
             setLastAlerts(result.triggered);
-            result.triggered.forEach((text) => speakText(text));
+
+            result.triggered.forEach((text) => {
+              try {
+                speakText(text);
+              } catch (error) {
+                console.error("Sesli uyarı hatası:", error);
+              }
+            });
           }
 
           return result.states;
