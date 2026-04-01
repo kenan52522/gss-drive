@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { findDistrictId } from "@/lib/district-map";
 import { evaluateAlerts } from "@/lib/alert-engine";
-import { speakText, warmupSpeech } from "@/lib/speech";
+import { playAlertSound, unlockAudioEngine } from "@/lib/speech";
 import { AlertPoint, AlertState } from "@/lib/types";
 
 type OverlayPointType = "radar" | "control" | "corridor_start" | "corridor_end";
@@ -179,7 +179,7 @@ function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
 
 export default function Level6Page() {
   const watchIdRef = useRef<number | null>(null);
-  const speechReadyRef = useRef(false);
+  const audioReadyRef = useRef(false);
 
   const [googleReady, setGoogleReady] = useState(false);
   const [from, setFrom] = useState("Samsun");
@@ -256,18 +256,18 @@ export default function Level6Page() {
     setTracking(false);
   }
 
-  function prepareSpeech() {
-    if (speechReadyRef.current) return;
+  async function prepareAudioEngine() {
+    if (audioReadyRef.current) return;
 
     try {
-      warmupSpeech();
-      speechReadyRef.current = true;
+      await unlockAudioEngine();
+      audioReadyRef.current = true;
     } catch (error) {
-      console.error("Ses sistemi hazırlanamadı:", error);
+      console.error("Ses motoru hazırlanamadı:", error);
     }
   }
 
-  function startTracking() {
+  async function startTracking() {
     setTrackingError("");
 
     if (!overlayPointsState.length) {
@@ -280,7 +280,7 @@ export default function Level6Page() {
       return;
     }
 
-    prepareSpeech();
+    await prepareAudioEngine();
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
@@ -299,7 +299,7 @@ export default function Level6Page() {
 
             result.triggered.forEach((text) => {
               try {
-                speakText(text);
+                playAlertSound(text);
               } catch (error) {
                 console.error("Sesli uyarı hatası:", error);
               }
@@ -430,6 +430,14 @@ export default function Level6Page() {
 
       setOverlayPointsState(overlayData.overlayPoints);
       setSummary(overlayData.summary);
+
+      await prepareAudioEngine();
+
+      try {
+        playAlertSound("Rota oluşturuldu");
+      } catch (error) {
+        console.error("Rota oluşturma sesi hatası:", error);
+      }
     } catch (error) {
       console.error(error);
       alert(
