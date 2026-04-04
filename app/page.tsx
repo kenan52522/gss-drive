@@ -6,7 +6,11 @@ import { findDistrictId } from "@/lib/district-map";
 import { evaluateAlerts } from "@/lib/alert-engine";
 import { AlertPoint, AlertState } from "@/lib/types";
 
-type OverlayPointType = "radar" | "control" | "corridor_start";
+type OverlayPointType =
+  | "radar"
+  | "control"
+  | "corridor_start"
+  | "corridor_end";
 
 type OverlayPoint = {
   id: string;
@@ -20,11 +24,7 @@ type OverlayPoint = {
 
 type OverlayResponse = {
   success: boolean;
-  overlayPoints: Array<
-    OverlayPoint & {
-      type: "radar" | "control" | "corridor_start" | "corridor_end";
-    }
-  >;
+  overlayPoints: OverlayPoint[];
   summary: {
     radar: number;
     control: number;
@@ -163,19 +163,21 @@ function resolveDistrictWithoutGeocoder(
 }
 
 function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
-  return points.map((point) => ({
-    id: point.id,
-    type:
-      point.type === "radar"
-        ? "radar"
-        : point.type === "control"
-        ? "control"
-        : "corridorStart",
-    title: point.title,
-    lat: point.lat,
-    lng: point.lng,
-    raw: point,
-  }));
+  return points
+    .filter((point) => point.type !== "corridor_end")
+    .map((point) => ({
+      id: point.id,
+      type:
+        point.type === "radar"
+          ? "radar"
+          : point.type === "control"
+          ? "control"
+          : "corridorStart",
+      title: point.title,
+      lat: point.lat,
+      lng: point.lng,
+      raw: point,
+    }));
 }
 
 export default function Page() {
@@ -206,7 +208,9 @@ export default function Page() {
     toAddress: "",
   });
 
-  const [overlayPointsState, setOverlayPointsState] = useState<OverlayPoint[]>([]);
+  const [overlayPointsState, setOverlayPointsState] = useState<OverlayPoint[]>(
+    []
+  );
   const [tracking, setTracking] = useState(false);
   const [trackingError, setTrackingError] = useState("");
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(
@@ -525,17 +529,9 @@ export default function Page() {
         throw new Error(overlayData.error || "Overlay verisi alınamadı.");
       }
 
-      const cleanedOverlayPoints: OverlayPoint[] = overlayData.overlayPoints
-        .filter((point) => point.type !== "corridor_end")
-        .map((point) => ({
-          id: point.id,
-          type: point.type === "corridor_start" ? "corridor_start" : point.type,
-          title: point.title,
-          lat: point.lat,
-          lng: point.lng,
-          city: point.city,
-          district: point.district,
-        }));
+      const cleanedOverlayPoints: OverlayPoint[] = overlayData.overlayPoints.filter(
+        (point) => point.type !== "corridor_end"
+      );
 
       setOverlayPointsState(cleanedOverlayPoints);
       setSummary({
@@ -687,7 +683,8 @@ export default function Page() {
             </button>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-              Ses durumu: <span className="font-semibold text-white">{audioStatus}</span>
+              Ses durumu:{" "}
+              <span className="font-semibold text-white">{audioStatus}</span>
             </div>
           </div>
 
@@ -729,7 +726,9 @@ export default function Page() {
                   <div className="text-sm text-slate-300">Boylam: {currentPos.lng}</div>
                 </>
               ) : (
-                <div className="text-sm text-slate-400">Henüz canlı konum alınmadı.</div>
+                <div className="text-sm text-slate-400">
+                  Henüz canlı konum alınmadı.
+                </div>
               )}
             </div>
 
@@ -756,7 +755,9 @@ export default function Page() {
             <div>
               <div className="mb-1 text-sm font-semibold">Başlangıç çözümleme</div>
               <div className="text-sm text-slate-300">İl: {debugInfo.fromCity || "-"}</div>
-              <div className="text-sm text-slate-300">İlçe: {debugInfo.fromDistrict || "-"}</div>
+              <div className="text-sm text-slate-300">
+                İlçe: {debugInfo.fromDistrict || "-"}
+              </div>
               <div className="text-sm text-slate-300">
                 districtId: {debugInfo.fromDistrictId || "-"}
               </div>
@@ -768,7 +769,9 @@ export default function Page() {
             <div>
               <div className="mb-1 text-sm font-semibold">Hedef çözümleme</div>
               <div className="text-sm text-slate-300">İl: {debugInfo.toCity || "-"}</div>
-              <div className="text-sm text-slate-300">İlçe: {debugInfo.toDistrict || "-"}</div>
+              <div className="text-sm text-slate-300">
+                İlçe: {debugInfo.toDistrict || "-"}
+              </div>
               <div className="text-sm text-slate-300">
                 districtId: {debugInfo.toDistrictId || "-"}
               </div>
