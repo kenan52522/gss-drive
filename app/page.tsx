@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { findDistrictId } from "@/lib/district-map";
