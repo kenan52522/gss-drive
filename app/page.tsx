@@ -6,7 +6,7 @@ import { findDistrictId } from "@/lib/district-map";
 import { evaluateAlerts } from "@/lib/alert-engine";
 import { AlertPoint, AlertState } from "@/lib/types";
 
-type OverlayPointType = "radar" | "control" | "corridor_start" | "corridor_end";
+type OverlayPointType = "radar" | "control" | "corridor_start";
 
 type OverlayPoint = {
   id: string;
@@ -20,7 +20,11 @@ type OverlayPoint = {
 
 type OverlayResponse = {
   success: boolean;
-  overlayPoints: OverlayPoint[];
+  overlayPoints: Array<
+    OverlayPoint & {
+      type: "radar" | "control" | "corridor_start" | "corridor_end";
+    }
+  >;
   summary: {
     radar: number;
     control: number;
@@ -166,9 +170,7 @@ function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
         ? "radar"
         : point.type === "control"
         ? "control"
-        : point.type === "corridor_start"
-        ? "corridorStart"
-        : "corridorEnd",
+        : "corridorStart",
     title: point.title,
     lat: point.lat,
     lng: point.lng,
@@ -191,7 +193,6 @@ export default function Page() {
     radar: 0,
     control: 0,
     corridorStart: 0,
-    corridorEnd: 0,
   });
 
   const [debugInfo, setDebugInfo] = useState({
@@ -222,6 +223,9 @@ export default function Page() {
     }>
   >([]);
   const [audioStatus, setAudioStatus] = useState("Hazır değil");
+  const [triggeredCorridorIds, setTriggeredCorridorIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -325,8 +329,6 @@ export default function Page() {
       return;
     }
 
-    // Tıklama anında warning sesi bir kez çalınır.
-    // Böylece tarayıcı bu sesi kullanıcı etkileşimi içinde tanır.
     await playWarningSound(true);
 
     const watchId = navigator.geolocation.watchPosition(
@@ -342,11 +344,60 @@ export default function Page() {
           setNearestList(result.nearest);
 
           if (result.triggered.length > 0) {
-            setLastAlerts(result.triggered);
+            const filteredTriggered: string[] = [];
 
-            playWarningSound().catch((error) => {
-              console.error("Uyarı sesi hatası:", error);
-            });
+            for (const alertText of result.triggered) {
+              const matchedPoint = result.nearest.find(
+                (item) => item.title === alertText
+              );
+
+              if (!matchedPoint) {
+                filteredTriggered.push(alertText);
+                continue;
+              }
+
+              const point = alertPoints.find((p) => p.id === matchedPoint.id);
+
+              if (!point) {
+                filteredTriggered.push(alertText);
+                continue;
+              }
+
+              if (point.type === "corridorStart") {
+                if (triggeredCorridorIds.has(point.id)) {
+                  continue;
+                }
+                filteredTriggered.push(alertText);
+              } else {
+                filteredTriggered.push(alertText);
+              }
+            }
+
+            if (filteredTriggered.length > 0) {
+              setLastAlerts(filteredTriggered);
+
+              const newCorridorIds = new Set(triggeredCorridorIds);
+
+              for (const alertText of filteredTriggered) {
+                const matchedPoint = result.nearest.find(
+                  (item) => item.title === alertText
+                );
+
+                if (!matchedPoint) continue;
+
+                const point = alertPoints.find((p) => p.id === matchedPoint.id);
+
+                if (point?.type === "corridorStart") {
+                  newCorridorIds.add(point.id);
+                }
+              }
+
+              setTriggeredCorridorIds(newCorridorIds);
+
+              playWarningSound().catch((error) => {
+                console.error("Uyarı sesi hatası:", error);
+              });
+            }
           }
 
           return result.states;
@@ -386,6 +437,7 @@ export default function Page() {
     setLastAlerts([]);
     setNearestList([]);
     setAlertStates({});
+    setTriggeredCorridorIds(new Set());
     stopTracking();
 
     try {
@@ -473,8 +525,24 @@ export default function Page() {
         throw new Error(overlayData.error || "Overlay verisi alınamadı.");
       }
 
-      setOverlayPointsState(overlayData.overlayPoints);
-      setSummary(overlayData.summary);
+      const cleanedOverlayPoints: OverlayPoint[] = overlayData.overlayPoints
+        .filter((point) => point.type !== "corridor_end")
+        .map((point) => ({
+          id: point.id,
+          type: point.type === "corridor_start" ? "corridor_start" : point.type,
+          title: point.title,
+          lat: point.lat,
+          lng: point.lng,
+          city: point.city,
+          district: point.district,
+        }));
+
+      setOverlayPointsState(cleanedOverlayPoints);
+      setSummary({
+        radar: overlayData.summary.radar,
+        control: overlayData.summary.control,
+        corridorStart: overlayData.summary.corridorStart,
+      });
       setAudioStatus("Hazır");
     } catch (error) {
       console.error(error);
@@ -635,7 +703,7 @@ export default function Page() {
             </div>
           ) : null}
 
-          <div className="mb-4 grid gap-3 md:grid-cols-4">
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
               <div className="text-sm text-slate-300">Radar</div>
               <div className="text-2xl font-bold">{summary.radar}</div>
@@ -649,11 +717,6 @@ export default function Page() {
             <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
               <div className="text-sm text-slate-300">Koridor başlangıcı</div>
               <div className="text-2xl font-bold">{summary.corridorStart}</div>
-            </div>
-
-            <div className="rounded-2xl border border-purple-500/20 bg-purple-500/10 p-4">
-              <div className="text-sm text-slate-300">Koridor bitişi</div>
-              <div className="text-2xl font-bold">{summary.corridorEnd}</div>
             </div>
           </div>
 
@@ -744,8 +807,8 @@ export default function Page() {
               <div className="space-y-1 text-sm text-slate-300">
                 <div>• Radar: 500 metre kala uyarı</div>
                 <div>• Kontrol noktası: 500 metre kala uyarı</div>
-                <div>• Hız koridoru başlangıcı: 500 metre kala uyarı</div>
-                <div>• Hız koridoru bitişi: 300 metre kala uyarı</div>
+                <div>• Hız koridoru başlangıcı: 500 metre kala tek uyarı</div>
+                <div>• Aynı koridorda tekrar uyarı yok</div>
               </div>
 
               <div className="mt-4 rounded-xl border border-slate-700 bg-slate-800 p-3 text-sm text-slate-300">

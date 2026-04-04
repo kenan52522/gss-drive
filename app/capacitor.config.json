@@ -1,0 +1,9 @@
+{
+  "appId": "com.kenmedya.gssdrive",
+  "appName": "GSS Drive",
+  "webDir": "dist",
+  "server": {
+    "url": "https://gss-drive.vercel.app",
+    "cleartext": false
+  }
+}
