@@ -1,200 +1,104 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getDeviceId } from "@/lib/utils/device";
-
-type LicenseStatus =
-  | "loading"
-  | "no_request"
-  | "pending"
-  | "approved"
-  | "active"
-  | "rejected"
-  | "blocked_device"
-  | "error";
 
 export default function HomePage() {
   const router = useRouter();
-
-  const [email, setEmail] = useState("kenan@gmail.com");
-  const [status, setStatus] = useState<LicenseStatus>("loading");
-  const [licenseKey, setLicenseKey] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function checkLicense() {
+  async function handleLogin() {
     try {
-      setStatus("loading");
+      setLoading(true);
       setMessage("");
 
-      const deviceId = getDeviceId();
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (!cleanEmail) {
+        setMessage("Lütfen e-posta adresinizi girin.");
+        return;
+      }
 
       const res = await fetch(
-        `/api/license-check?email=${encodeURIComponent(email)}&device_id=${encodeURIComponent(deviceId)}`,
-        {
-          cache: "no-store",
-        }
+        "/api/license/check?email=" + encodeURIComponent(cleanEmail)
       );
 
       const data = await res.json();
 
-      if (!data.ok) {
-        setStatus("error");
-        setMessage(data.error || "Bir hata oluştu.");
+      if (!res.ok || !data?.ok) {
+        setMessage(data?.message || "Lisans bulunamadı.");
         return;
       }
 
-      if (data.error === "Bu lisans başka bir cihazda kayıtlı.") {
-        setStatus("blocked_device");
-        setMessage(data.error);
-        return;
-      }
+      localStorage.setItem("gss_license_ok", "true");
+      localStorage.setItem("gss_license_email", cleanEmail);
 
-      if (data.hasActiveLicense) {
-        setStatus("active");
-        setLicenseKey(data.license?.license_key || "");
-
-        setTimeout(() => {
-          router.push("/route");
-        }, 1200);
-
-        return;
-      }
-
-      if (!data.request) {
-        setStatus("no_request");
-        return;
-      }
-
-      if (data.request.status === "pending") {
-        setStatus("pending");
-        return;
-      }
-
-      if (data.request.status === "approved") {
-        setStatus("approved");
-        return;
-      }
-
-      if (data.request.status === "rejected") {
-        setStatus("rejected");
-        return;
-      }
-
-      setStatus("error");
-      setMessage("Durum okunamadı.");
-    } catch (error) {
-      setStatus("error");
-      setMessage("Sunucuya bağlanılamadı.");
+      router.push("/menu");
+    } catch (err) {
+      console.error(err);
+      setMessage("Sunucu hatası oluştu.");
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => {
-    checkLicense();
-  }, []);
-
   return (
-    <main style={{ padding: 24, fontFamily: "Arial, sans-serif" }}>
-      <div style={{ maxWidth: 420 }}>
-        <h1>GSS Drive Lisans Kontrolü</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b1020",
+      }}
+    >
+      <div
+        style={{
+          width: 360,
+          padding: 24,
+          borderRadius: 16,
+          background: "#11182d",
+          border: "1px solid #26304d",
+        }}
+      >
+        <h1 style={{ color: "#fff", marginBottom: 10 }}>GSS Drive</h1>
 
-        <div style={{ marginBottom: 16 }}>
-          <label>E-posta</label>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              marginTop: 6,
-              border: "1px solid #ccc",
-              borderRadius: 8,
-            }}
-          />
-        </div>
+        <input
+          placeholder="E-posta"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{
+            width: "100%",
+            height: 45,
+            borderRadius: 10,
+            border: "1px solid #33405f",
+            padding: "0 10px",
+            marginBottom: 10,
+            background: "#0f1528",
+            color: "#fff",
+          }}
+        />
 
         <button
-          onClick={checkLicense}
+          onClick={handleLogin}
+          disabled={loading}
           style={{
-            padding: "10px 16px",
-            borderRadius: 8,
+            width: "100%",
+            height: 45,
+            borderRadius: 10,
+            background: "#3b82f6",
             border: "none",
-            cursor: "pointer",
-            marginBottom: 20,
+            color: "#fff",
+            fontWeight: 600,
           }}
         >
-          Yenile
+          {loading ? "Kontrol ediliyor..." : "Giriş Yap"}
         </button>
 
-        {status === "loading" && <p>Kontrol ediliyor...</p>}
-
-        {status === "no_request" && (
-          <div>
-            <p>Henüz lisans talebi bulunamadı.</p>
-          </div>
-        )}
-
-        {status === "pending" && (
-          <div>
-            <p>
-              <strong>Onay Bekleniyor</strong>
-            </p>
-            <p>{email}</p>
-          </div>
-        )}
-
-        {status === "approved" && (
-          <div>
-            <p>
-              <strong>Talep onaylandı.</strong>
-            </p>
-            <p>Lisans kaydı kontrol ediliyor. Yenile butonuna bas.</p>
-          </div>
-        )}
-
-        {status === "active" && (
-          <div>
-            <p>
-              <strong>Lisans Aktif</strong>
-            </p>
-            <p>{email}</p>
-            <p>Lisans Anahtarı: {licenseKey}</p>
-            <div
-              style={{
-                marginTop: 16,
-                padding: 16,
-                border: "1px solid #22c55e",
-                borderRadius: 8,
-              }}
-            >
-              GSS Drive kullanımına hazırsınız. Ana uygulamaya yönlendiriliyorsunuz...
-            </div>
-          </div>
-        )}
-
-        {status === "blocked_device" && (
-          <div>
-            <p>
-              <strong>Cihaz Engeli</strong>
-            </p>
-            <p>{message}</p>
-          </div>
-        )}
-
-        {status === "rejected" && (
-          <div>
-            <p>
-              <strong>Lisans talebi reddedildi.</strong>
-            </p>
-          </div>
-        )}
-
-        {status === "error" && (
-          <div>
-            <p>
-              <strong>Hata:</strong> {message}
-            </p>
-          </div>
+        {message && (
+          <p style={{ color: "red", marginTop: 10 }}>{message}</p>
         )}
       </div>
     </main>
