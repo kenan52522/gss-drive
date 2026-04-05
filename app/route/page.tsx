@@ -548,22 +548,25 @@ export default function RoutePage() {
         throw new Error(overlayData.error || "Overlay verisi alınamadı.");
       }
 
-      const cleanedOverlayPoints: OverlayPoint[] = overlayData.overlayPoints
-        .map((point) => ({
-          id: point.id,
-          type: point.type,
-          title: point.title,
-          lat: point.lat,
-          lng: point.lng,
-          city: point.city,
-          district: point.district,
-        }))
-        .filter(
-          (point): point is OverlayPoint =>
-            point.type === "radar" ||
-            point.type === "control" ||
-            point.type === "corridor_start"
-        );
+      const cleanedOverlayPoints = overlayData.overlayPoints
+  .filter(
+    (point): point is Extract<
+      OverlayResponse["overlayPoints"][number],
+      { type: "radar" | "control" | "corridor_start" }
+    > =>
+      point.type === "radar" ||
+      point.type === "control" ||
+      point.type === "corridor_start"
+  )
+  .map<OverlayPoint>((point) => ({
+    id: point.id,
+    type: point.type,
+    title: point.title,
+    lat: point.lat,
+    lng: point.lng,
+    city: point.city,
+    district: point.district,
+  }));
 
       setOverlayPointsState(cleanedOverlayPoints);
       setSummary({
