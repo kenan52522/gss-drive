@@ -387,6 +387,7 @@ export default function RoutePage() {
   }
 
   async function startTracking() {
+    alert("YENİ SÜRÜM AKTİF");
     setTrackingError("");
 
     if (!overlayPointsState.length) {
