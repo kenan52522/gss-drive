@@ -21,11 +21,15 @@ type OverlayPoint = {
 
 type OverlayResponse = {
   success: boolean;
-  overlayPoints: Array<
-    OverlayPoint & {
-      type: "radar" | "control" | "corridor_start" | "corridor_end";
-    }
-  >;
+  overlayPoints: Array<{
+    id: string;
+    type: "radar" | "control" | "corridor_start" | "corridor_end";
+    title: string;
+    lat: number;
+    lng: number;
+    city?: string;
+    district?: string;
+  }>;
   summary: {
     radar: number;
     control: number;
@@ -545,16 +549,21 @@ export default function RoutePage() {
       }
 
       const cleanedOverlayPoints: OverlayPoint[] = overlayData.overlayPoints
-        .filter((point) => point.type !== "corridor_end")
         .map((point) => ({
           id: point.id,
-          type: point.type === "corridor_start" ? "corridor_start" : point.type,
+          type: point.type,
           title: point.title,
           lat: point.lat,
           lng: point.lng,
           city: point.city,
           district: point.district,
-        }));
+        }))
+        .filter(
+          (point): point is OverlayPoint =>
+            point.type === "radar" ||
+            point.type === "control" ||
+            point.type === "corridor_start"
+        );
 
       setOverlayPointsState(cleanedOverlayPoints);
       setSummary({
