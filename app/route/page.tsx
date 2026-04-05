@@ -8,6 +8,11 @@ import { evaluateAlerts } from "@/lib/alert-engine";
 import { AlertPoint, AlertState } from "@/lib/types";
 
 type OverlayPointType = "radar" | "control" | "corridor_start";
+type OverlayPointRawType =
+  | "radar"
+  | "control"
+  | "corridor_start"
+  | "corridor_end";
 
 type OverlayPoint = {
   id: string;
@@ -19,17 +24,19 @@ type OverlayPoint = {
   district?: string;
 };
 
+type OverlayPointRaw = {
+  id: string;
+  type: OverlayPointRawType;
+  title: string;
+  lat: number;
+  lng: number;
+  city?: string;
+  district?: string;
+};
+
 type OverlayResponse = {
   success: boolean;
-  overlayPoints: Array<{
-    id: string;
-    type: "radar" | "control" | "corridor_start" | "corridor_end";
-    title: string;
-    lat: number;
-    lng: number;
-    city?: string;
-    district?: string;
-  }>;
+  overlayPoints: OverlayPointRaw[];
   summary: {
     radar: number;
     control: number;
@@ -165,6 +172,12 @@ function resolveDistrictWithoutGeocoder(
     district,
     districtId,
   };
+}
+
+function isValidOverlayType(type: OverlayPointRawType): type is OverlayPointType {
+  return (
+    type === "radar" || type === "control" || type === "corridor_start"
+  );
 }
 
 function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
@@ -548,25 +561,21 @@ export default function RoutePage() {
         throw new Error(overlayData.error || "Overlay verisi alınamadı.");
       }
 
-      const cleanedOverlayPoints = overlayData.overlayPoints
-  .filter(
-    (point): point is Extract<
-      OverlayResponse["overlayPoints"][number],
-      { type: "radar" | "control" | "corridor_start" }
-    > =>
-      point.type === "radar" ||
-      point.type === "control" ||
-      point.type === "corridor_start"
-  )
-  .map<OverlayPoint>((point) => ({
-    id: point.id,
-    type: point.type,
-    title: point.title,
-    lat: point.lat,
-    lng: point.lng,
-    city: point.city,
-    district: point.district,
-  }));
+      const cleanedOverlayPoints: OverlayPoint[] = [];
+
+      for (const point of overlayData.overlayPoints) {
+        if (!isValidOverlayType(point.type)) continue;
+
+        cleanedOverlayPoints.push({
+          id: point.id,
+          type: point.type,
+          title: point.title,
+          lat: point.lat,
+          lng: point.lng,
+          city: point.city,
+          district: point.district,
+        });
+      }
 
       setOverlayPointsState(cleanedOverlayPoints);
       setSummary({
