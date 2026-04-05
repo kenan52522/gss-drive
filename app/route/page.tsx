@@ -3,9 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { findDistrictId } from "@/lib/district-map";
 import { evaluateAlerts } from "@/lib/alert-engine";
 import { AlertPoint, AlertState } from "@/lib/types";
+
+type GssDrivePluginType = {
+  startTracking: () => Promise<{ success: boolean; message: string }>;
+  stopTracking: () => Promise<{ success: boolean; message: string }>;
+};
+
+const GssDrive = registerPlugin<GssDrivePluginType>("GssDrive");
 
 type OverlayPointType = "radar" | "control" | "corridor_start";
 type OverlayPointRawType =
@@ -175,9 +183,7 @@ function resolveDistrictWithoutGeocoder(
 }
 
 function isValidOverlayType(type: OverlayPointRawType): type is OverlayPointType {
-  return (
-    type === "radar" || type === "control" || type === "corridor_start"
-  );
+  return type === "radar" || type === "control" || type === "corridor_start";
 }
 
 function convertOverlayToAlertPoints(points: OverlayPoint[]): AlertPoint[] {
@@ -286,16 +292,44 @@ export default function RoutePage() {
     return () => {
       if (watchIdRef.current !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
       }
+
+      void stopNativeTrackingService();
     };
   }, []);
 
-  function stopTracking() {
+  async function startNativeTrackingService() {
+    try {
+      if (Capacitor.getPlatform() !== "android") return;
+      await GssDrive.startTracking();
+      console.log("Native takip servisi başlatıldı");
+    } catch (error) {
+      console.error("Native takip servisi başlatılamadı:", error);
+    }
+  }
+
+  async function stopNativeTrackingService() {
+    try {
+      if (Capacitor.getPlatform() !== "android") return;
+      await GssDrive.stopTracking();
+      console.log("Native takip servisi durduruldu");
+    } catch (error) {
+      console.error("Native takip servisi durdurulamadı:", error);
+    }
+  }
+
+  function stopTrackingInternal() {
     if (watchIdRef.current !== null && navigator.geolocation) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
     setTracking(false);
+  }
+
+  async function stopTracking() {
+    stopTrackingInternal();
+    await stopNativeTrackingService();
   }
 
   async function playRouteReadySound() {
@@ -442,7 +476,8 @@ export default function RoutePage() {
       (error) => {
         console.error(error);
         setTrackingError("Canlı konum alınamadı.");
-        stopTracking();
+        stopTrackingInternal();
+        void stopNativeTrackingService();
       },
       {
         enableHighAccuracy: true,
@@ -453,6 +488,7 @@ export default function RoutePage() {
 
     watchIdRef.current = watchId;
     setTracking(true);
+    await startNativeTrackingService();
   }
 
   async function calculateRoute() {
@@ -474,7 +510,7 @@ export default function RoutePage() {
     setNearestList([]);
     setAlertStates({});
     setTriggeredCorridorIds(new Set());
-    stopTracking();
+    await stopTracking();
 
     try {
       const directionsService = new window.google.maps.DirectionsService();

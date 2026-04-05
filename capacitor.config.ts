@@ -1,9 +1,13 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.kenmedya.gssdrive',
+  appId: 'com.gss.drive',
   appName: 'GSS Drive',
-  webDir: 'public'
+  webDir: 'out',
+  server: {
+    url: 'https://gss-drive.vercel.app',
+    cleartext: true
+  }
 };
 
 export default config;

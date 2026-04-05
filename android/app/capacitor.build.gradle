@@ -9,7 +9,8 @@ android {
 
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
-
+    implementation 'androidx.core:core-ktx:1.18.0'
+    implementation project(':capacitor-preferences')
 
 }
 
