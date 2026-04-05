@@ -301,21 +301,37 @@ export default function RoutePage() {
 
   async function startNativeTrackingService() {
     try {
-      if (Capacitor.getPlatform() !== "android") return;
-      await GssDrive.startTracking();
-      console.log("Native takip servisi başlatıldı");
+      const platform = Capacitor.getPlatform();
+      alert("Platform: " + platform);
+
+      if (platform !== "android") {
+        alert("Android değil, native servis çağrılmadı.");
+        return;
+      }
+
+      alert("Native startTracking çağrılıyor...");
+      const result = await GssDrive.startTracking();
+      alert("Native sonuç: " + JSON.stringify(result));
+      console.log("Native takip servisi başlatıldı", result);
     } catch (error) {
       console.error("Native takip servisi başlatılamadı:", error);
+      alert("Native hata: " + String(error));
     }
   }
 
   async function stopNativeTrackingService() {
     try {
-      if (Capacitor.getPlatform() !== "android") return;
-      await GssDrive.stopTracking();
-      console.log("Native takip servisi durduruldu");
+      const platform = Capacitor.getPlatform();
+
+      if (platform !== "android") {
+        return;
+      }
+
+      const result = await GssDrive.stopTracking();
+      console.log("Native takip servisi durduruldu", result);
     } catch (error) {
       console.error("Native takip servisi durdurulamadı:", error);
+      alert("Stop hata: " + String(error));
     }
   }
 
@@ -388,6 +404,7 @@ export default function RoutePage() {
 
   async function startTracking() {
     alert("YENİ SÜRÜM AKTİF");
+
     setTrackingError("");
 
     if (!overlayPointsState.length) {
